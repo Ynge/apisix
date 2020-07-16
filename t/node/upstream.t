@@ -1,4 +1,20 @@
-use t::APISix 'no_plan';
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+use t::APISIX 'no_plan';
 
 repeat_each(1);
 log_level('info');
@@ -10,7 +26,69 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: set upstream(id: 1)
+=== TEST 1: set upstream(id: 1) invalid parameters
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/upstreams/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                    "type": "roundrobin",
+                    "desc": "new upstream"
+                }]]
+                )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- error_code: 400
+--- no_error_log
+[error]
+
+
+
+=== TEST 2: set upstream(id: 1) k8s deployment info
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/upstreams/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                    "k8s_deployment_info": {
+                        "namespace": "test-namespace",
+                        "deploy_name": "test-deploy-name",
+                        "service_name": "test-service-name",
+                        "backend_type": "pod",
+                        "port": 8080
+                    },
+                    "type": "roundrobin",
+                    "desc": "new upstream"
+                }]]
+                )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 3: set upstream(id: 1) nodes
 --- config
     location /t {
         content_by_lua_block {
@@ -41,7 +119,7 @@ passed
 
 
 
-=== TEST 2: set route(id: 1)
+=== TEST 4: set route(id: 1)
 --- config
     location /t {
         content_by_lua_block {
@@ -69,18 +147,18 @@ passed
 
 
 
-=== TEST 3: /not_found
+=== TEST 5: /not_found
 --- request
 GET /not_found
 --- error_code: 404
---- response_body eval
-qr/404 Not Found/
+--- response_body
+{"error_msg":"failed to match any routes"}
 --- no_error_log
 [error]
 
 
 
-=== TEST 4: hit routes
+=== TEST 6: hit routes
 --- request
 GET /hello
 --- response_body
@@ -90,7 +168,7 @@ hello world
 
 
 
-=== TEST 5: delete upstream(id: 1)
+=== TEST 7: delete upstream(id: 1)
 --- config
     location /t {
         content_by_lua_block {
@@ -115,7 +193,7 @@ GET /t
 
 
 
-=== TEST 6: delete route(id: 1)
+=== TEST 8: delete route(id: 1)
 --- config
     location /t {
         content_by_lua_block {
@@ -139,7 +217,7 @@ GET /t
 
 
 
-=== TEST 7: delete upstream(id: 1)
+=== TEST 9: delete upstream(id: 1)
 --- config
     location /t {
         content_by_lua_block {
@@ -163,7 +241,7 @@ GET /t
 
 
 
-=== TEST 8: delete upstream again(id: 1)
+=== TEST 10: delete upstream again(id: 1)
 --- config
     location /t {
         content_by_lua_block {

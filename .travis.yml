@@ -1,16 +1,32 @@
-dist: xenial
+dist: bionic
 sudo: required
 
 matrix:
-  fast_finish: true
+  allow_failures:
+    - os: osx
   include:
     - os: linux
+      services:
+        - docker
+      env: OSNAME=linux_openresty
     - os: osx
-      if: type IN (push)
+      env: OSNAME=osx_openresty
       cache:
         directories:
           - $HOME/Library/Caches/Homebrew
           - /usr/local/Homebrew
+    - os: linux
+      services:
+        - docker
+      env: OSNAME=linux_tengine
+    - os: linux
+      services:
+        - docker
+      env: OSNAME=linux_apisix_master_luarocks
+    - os: linux
+      services:
+        - docker
+      env: OSNAME=linux_apisix_current_luarocks
 
 language: c
 
@@ -20,33 +36,29 @@ addons:
       - cpanminus
       - build-essential
       - libncurses5-dev
-      - libpcre3-dev
       - libreadline-dev
       - libssl-dev
       - perl
       - etcd
-      - luarocks
-      - cmake
-      - lua-check
   homebrew:
     update: true
 
 cache:
   directories:
-  - build-cache
+    - build-cache
 
 before_cache:
   - brew cleanup
 
 before_install:
-  - echo $TRAVIS_OS_NAME
-  - $PWD/.travis/${TRAVIS_OS_NAME}_runner.sh before_install
+  - echo $OSNAME
+  - $PWD/.travis/${OSNAME}_runner.sh before_install
 
 install:
-  - $PWD/.travis/${TRAVIS_OS_NAME}_runner.sh do_install
+  - $PWD/.travis/${OSNAME}_runner.sh do_install
 
 script:
-  - $PWD/.travis/${TRAVIS_OS_NAME}_runner.sh script
+  - $PWD/.travis/${OSNAME}_runner.sh script
 
 after_success:
-  - $PWD/.travis/${TRAVIS_OS_NAME}_runner.sh after_success
+  - $PWD/.travis/${OSNAME}_runner.sh after_success
