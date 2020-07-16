@@ -1,4 +1,20 @@
-use t::APISix 'no_plan';
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+use t::APISIX 'no_plan';
 
 repeat_each(1);
 no_long_string();
@@ -89,7 +105,7 @@ done
 --- request
 GET /t
 --- response_body
-invalid "enum" in docuement at pointer "#/phase"
+property "phase" validation failed: matches non of the enum values
 done
 --- no_error_log
 [error]
@@ -552,3 +568,62 @@ passed
 GET /hello
 --- error_log
 serverless pre function:2
+
+
+
+=== TEST 19: http -> https redirect
+--- config
+    location /t {
+        content_by_lua_block {
+            local t = require("lib.test_admin").test
+            local code, body = t('/apisix/admin/routes/1',
+                 ngx.HTTP_PUT,
+                 [[{
+                    "plugins": {
+                        "serverless-pre-function": {
+                            "functions" : ["return function() if ngx.var.scheme == \"http\" and ngx.var.host == \"foo.com\" then ngx.header[\"Location\"] = \"https://foo.com\" .. ngx.var.request_uri; ngx.exit(ngx.HTTP_MOVED_PERMANENTLY); end; end"]
+                        }
+                    },
+                    "uri": "/hello"
+                }]],
+                [[{
+                    "node": {
+                        "value": {
+                            "plugins": {
+                                "serverless-pre-function": {
+                                    "functions" : ["return function() if ngx.var.scheme == \"http\" and ngx.var.host == \"foo.com\" then ngx.header[\"Location\"] = \"https://foo.com\" .. ngx.var.request_uri; ngx.exit(ngx.HTTP_MOVED_PERMANENTLY); end; end"]
+                                }
+                            },
+                            "uri": "/hello"
+                        },
+                        "key": "/apisix/routes/1"
+                    },
+                    "action": "set"
+                }]]
+                )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+            ngx.say(body)
+        }
+    }
+--- request
+GET /t
+--- more_headers
+Host: foo.com
+--- response_body
+passed
+--- no_error_log
+[error]
+
+
+
+=== TEST 20: check plugin
+--- request
+GET /hello
+--- more_headers
+Host: foo.com
+--- error_code: 301
+--- response_headers
+Location: https://foo.com/hello

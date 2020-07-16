@@ -1,5 +1,22 @@
 #! /bin/bash -x
 
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 if [ -n "$1" ]; then
     worker_cnt=$1
 else
@@ -19,7 +36,12 @@ function onCtrlC () {
     sudo openresty -p $PWD/benchmark/server -s stop || exit 1
 }
 
-sed  -i "s/worker_processes [0-9]*/worker_processes $worker_cnt/g" conf/nginx.conf
+if [[ "$(uname)" == "Darwin" ]]; then
+    sed  -i "" "s/worker_processes .*/worker_processes $worker_cnt;/g" conf/nginx.conf
+else
+    sed  -i "s/worker_processes .*/worker_processes $worker_cnt;/g" conf/nginx.conf
+fi
+
 make run
 
 sleep 3
@@ -27,7 +49,7 @@ sleep 3
 #############################################
 echo -e "\n\napisix: $worker_cnt worker + 1 upstream + no plugin"
 
-curl http://127.0.0.1:9080/apisix/admin/routes/1 -X PUT -d '
+curl http://127.0.0.1:9080/apisix/admin/routes/1 -H 'X-API-KEY: edd1c9f034335f136f87ad84b625c8f1' -X PUT -d '
 {
     "uri": "/hello",
     "plugins": {
@@ -53,7 +75,7 @@ sleep 1
 #############################################
 echo -e "\n\napisix: $worker_cnt worker + 1 upstream + 2 plugins (limit-count + prometheus)"
 
-curl http://127.0.0.1:9080/apisix/admin/routes/1 -X PUT -d '
+curl http://127.0.0.1:9080/apisix/admin/routes/1 -H 'X-API-KEY: edd1c9f034335f136f87ad84b625c8f1' -X PUT -d '
 {
     "uri": "/hello",
     "plugins": {
