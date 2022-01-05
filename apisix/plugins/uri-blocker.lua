@@ -36,6 +36,14 @@ local schema = {
             minimum = 200,
             default = 403
         },
+        rejected_msg = {
+            type = "string",
+            minLength = 1
+        },
+        case_insensitive = {
+            type = "boolean",
+            default = false
+        },
     },
     required = {"block_rules"},
 }
@@ -57,18 +65,15 @@ function _M.check_schema(conf)
         return false, err
     end
 
-    local block_rules = {}
     for i, re_rule in ipairs(conf.block_rules) do
         local ok, err = re_compile(re_rule, "j")
-        -- core.log.warn("ok: ", tostring(ok), " err: ", tostring(err), " re_rule: ", re_rule)
+        -- core.log.warn("ok: ", tostring(ok), " err: ", tostring(err),
+        --               " re_rule: ", re_rule)
         if not ok then
             return false, err
         end
-        block_rules[i] = re_rule
     end
 
-    conf.block_rules_concat = core.table.concat(block_rules, "|")
-    core.log.info("concat block_rules: ", conf.block_rules_concat)
     return true
 end
 
@@ -76,9 +81,26 @@ end
 function _M.rewrite(conf, ctx)
     core.log.info("uri: ", ctx.var.request_uri)
     core.log.info("block uri rules: ", conf.block_rules_concat)
+
+    if not conf.block_rules_concat then
+        local block_rules = {}
+        for i, re_rule in ipairs(conf.block_rules) do
+            block_rules[i] = re_rule
+        end
+
+        conf.block_rules_concat = core.table.concat(block_rules, "|")
+        if conf.case_insensitive then
+            conf.block_rules_concat = "(?i)" .. conf.block_rules_concat
+        end
+        core.log.info("concat block_rules: ", conf.block_rules_concat)
+    end
+
     local from = re_find(ctx.var.request_uri, conf.block_rules_concat, "jo")
     if from then
-        core.response.exit(conf.rejected_code)
+        if conf.rejected_msg then
+            return conf.rejected_code, { error_msg = conf.rejected_msg }
+        end
+        return conf.rejected_code
     end
 end
 

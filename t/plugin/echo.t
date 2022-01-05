@@ -28,7 +28,7 @@ __DATA__
     location /t {
         content_by_lua_block {
             local plugin = require("apisix.plugins.echo")
-            local ok, err = plugin.check_schema({before_body = "body before", body = "body to attach" ,
+            local ok, err = plugin.check_schema({before_body = "body before", body = "body to attach",
             after_body = "body to attach"})
             if not ok then
                 ngx.say(err)
@@ -51,7 +51,7 @@ done
     location /t {
         content_by_lua_block {
             local plugin = require("apisix.plugins.echo")
-            local ok, err = plugin.check_schema({before_body = "body before", body = "body to attach" ,
+            local ok, err = plugin.check_schema({before_body = "body before", body = "body to attach",
             after_body = 10})
             if not ok then
                 ngx.say(err)
@@ -82,11 +82,11 @@ done
                             "echo": {
                                 "before_body": "before the body modification ",
                                 "body":"hello upstream",
-                                 "headers": {
+                                "after_body": " after the body modification.",
+                                "headers": {
                                     "Location":"https://www.iresty.com",
                                     "Authorization": "userpass"
-                                 },
-                                 "auth_value" : "userpass"
+                                }
                             }
                         },
                         "upstream": {
@@ -107,7 +107,6 @@ done
                                 "headers": {
                                     "Location":"https://www.iresty.com"
                                  },
-                                 "auth_value" : "userpass"
                                }
                             },
                             "upstream": {
@@ -142,10 +141,8 @@ passed
 === TEST 4: access
 --- request
 GET /hello
---- more_headers
-Authorization: userpass
 --- response_body chomp
-before the body modification hello upstream
+before the body modification hello upstream after the body modification.
 --- response_headers
 Location: https://www.iresty.com
 Authorization: userpass
@@ -166,7 +163,6 @@ Authorization: userpass
                         "plugins": {
                             "echo": {
                                 "before_body": "before the body modification ",
-                                "auth_value" : "userpass",
                                 "headers": {
                                     "Location":"https://www.iresty.com"
                                 }
@@ -186,7 +182,6 @@ Authorization: userpass
                             "plugins": {
                                "echo": {
                                 "before_body": "before the body modification ",
-                                 "auth_value" : "userpass",
                                 "headers": {
                                     "Location":"https://www.iresty.com"
                                 }
@@ -224,8 +219,6 @@ passed
 === TEST 6: access without upstream body change
 --- request
 GET /hello
---- more_headers
-Authorization: userpass
 --- response_body
 before the body modification hello world
 --- response_headers
@@ -237,7 +230,47 @@ Location: https://www.iresty.com
 
 
 
-=== TEST 7: update plugin back
+=== TEST 7: print the `conf` in etcd, no dirty data
+--- config
+    location /t {
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local t = require("lib.test_admin").test
+            local encode_with_keys_sorted = require("toolkit.json").encode
+
+            local code, _, body = t('/apisix/admin/routes/1',
+                ngx.HTTP_PUT,
+                [[{
+                    "plugins": {
+                        "echo": {
+                            "before_body": "before the body modification ",
+                            "headers": {
+                                "Location":"https://www.iresty.com"
+                            }
+                        }
+                    },
+                    "uri": "/hello"
+                }]]
+                )
+
+            if code >= 300 then
+                ngx.status = code
+            end
+
+            local resp_data = core.json.decode(body)
+            ngx.say(encode_with_keys_sorted(resp_data.node.value.plugins))
+        }
+    }
+--- request
+GET /t
+--- response_body
+{"echo":{"before_body":"before the body modification ","headers":{"Location":"https://www.iresty.com"}}}
+--- no_error_log
+[error]
+
+
+
+=== TEST 8: set body with chunked upstream
 --- config
     location /t {
         content_by_lua_block {
@@ -247,11 +280,7 @@ Location: https://www.iresty.com
                  [[{
                         "plugins": {
                             "echo": {
-                                "before_body": "before the body modification ",
-                                 "auth_value" : "userpasswrd",
-                                "headers": {
-                                    "Location":"https://www.iresty.com"
-                                }
+                                "body":"hello upstream"
                             }
                         },
                         "upstream": {
@@ -260,31 +289,7 @@ Location: https://www.iresty.com
                             },
                             "type": "roundrobin"
                         },
-                        "uri": "/hello"
-                }]],
-                [[{
-                    "node": {
-                        "value": {
-                            "plugins": {
-                               "echo": {
-                                "before_body": "before the body modification ",
-                                 "auth_value" : "userpasswrd",
-                                "headers": {
-                                    "Location":"https://www.iresty.com"
-                                }
-                               }
-                            },
-                            "upstream": {
-                                "nodes": {
-                                    "127.0.0.1:1980": 1
-                                },
-                                "type": "roundrobin"
-                            },
-                            "uri": "/hello"
-                        },
-                        "key": "/apisix/routes/1"
-                    },
-                    "action": "set"
+                        "uri": "/hello_chunked"
                 }]]
                 )
 
@@ -303,20 +308,17 @@ passed
 
 
 
-=== TEST 8: access with wrong value in auth header value throws 401
+=== TEST 9: access
 --- request
-GET /hello
---- more_headers
-Authorization: userpass
---- error_code: 401
+GET /hello_chunked
 --- response_body chomp
-before the body modification unauthorized body
---- response_headers
-Location: https://www.iresty.com
+hello upstream
+--- no_error_log
+[error]
 
 
 
-=== TEST 9: update plugin back
+=== TEST 10: add before/after body with chunked upstream
 --- config
     location /t {
         content_by_lua_block {
@@ -327,9 +329,7 @@ Location: https://www.iresty.com
                         "plugins": {
                             "echo": {
                                 "before_body": "before the body modification ",
-                                "headers": {
-                                    "Location":"https://www.iresty.com"
-                                }
+                                "after_body": " after the body modification."
                             }
                         },
                         "upstream": {
@@ -338,30 +338,7 @@ Location: https://www.iresty.com
                             },
                             "type": "roundrobin"
                         },
-                        "uri": "/hello"
-                }]],
-                [[{
-                    "node": {
-                        "value": {
-                            "plugins": {
-                               "echo": {
-                                "before_body": "before the body modification ",
-                                "headers": {
-                                    "Location":"https://www.iresty.com"
-                                }
-                               }
-                            },
-                            "upstream": {
-                                "nodes": {
-                                    "127.0.0.1:1980": 1
-                                },
-                                "type": "roundrobin"
-                            },
-                            "uri": "/hello"
-                        },
-                        "key": "/apisix/routes/1"
-                    },
-                    "action": "set"
+                        "uri": "/hello_chunked"
                 }]]
                 )
 
@@ -380,90 +357,11 @@ passed
 
 
 
-=== TEST 10: access with no auth header and value throws 401
+=== TEST 11: access
 --- request
-GET /hello
---- more_headers
-Authorization: userpass
---- error_code: 401
+GET /hello_chunked
 --- response_body chomp
-before the body modification unauthorized body
---- response_headers
-Location: https://www.iresty.com
-
-
-
-=== TEST 11: update plugin
---- config
-    location /t {
-        content_by_lua_block {
-            local t = require("lib.test_admin").test
-            local code, body = t('/apisix/admin/routes/1',
-                 ngx.HTTP_PUT,
-                 [[{
-                        "plugins": {
-                            "echo": {
-                                "before_body": "before the body modification ",
-                                 "auth_value" : "userpass",
-                                "headers": {
-                                    "Location":"https://www.iresty.com"
-                                }
-                            }
-                        },
-                        "upstream": {
-                            "nodes": {
-                                "127.0.0.1:1980": 1
-                            },
-                            "type": "roundrobin"
-                        },
-                        "uri": "/hello"
-                }]],
-                [[{
-                    "node": {
-                        "value": {
-                            "plugins": {
-                               "echo": {
-                                "before_body": "before the body modification ",
-                                 "auth_value" : "userpass",
-                                "headers": {
-                                    "Location":"https://www.iresty.com"
-                                }
-                               }
-                            },
-                            "upstream": {
-                                "nodes": {
-                                    "127.0.0.1:1980": 1
-                                },
-                                "type": "roundrobin"
-                            },
-                            "uri": "/hello"
-                        },
-                        "key": "/apisix/routes/1"
-                    },
-                    "action": "set"
-                }]]
-                )
-
-            if code >= 300 then
-                ngx.status = code
-            end
-            ngx.say(body)
-        }
-    }
---- request
-GET /t
---- response_body
-passed
+before the body modification hello world
+ after the body modification.
 --- no_error_log
 [error]
-
-
-
-=== TEST 12: access without authorization as a header should throws 401
---- request
-GET /hello
---- error_code: 401
---- response_body chomp
-before the body modification unauthorized body
---- response_headers
-Location: https://www.iresty.com

@@ -206,3 +206,288 @@ X-Forwarded-For: 10.0.0.1
 10.0.0.1
 --- no_error_log
 [error]
+
+
+
+=== TEST 6: get_host
+--- config
+    location = /hello {
+        real_ip_header X-Real-IP;
+
+        set_real_ip_from 0.0.0.0/0;
+        set_real_ip_from ::/0;
+        set_real_ip_from unix:;
+
+        access_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+        }
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local host = core.request.get_host(ngx.ctx.api_ctx)
+            ngx.say(host)
+        }
+    }
+--- request
+GET /hello
+--- more_headers
+X-Real-IP: 10.0.0.1
+--- response_body
+localhost
+--- no_error_log
+[error]
+
+
+
+=== TEST 7: get_scheme
+--- config
+    location = /hello {
+        real_ip_header X-Real-IP;
+
+        set_real_ip_from 0.0.0.0/0;
+        set_real_ip_from ::/0;
+        set_real_ip_from unix:;
+
+        access_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+        }
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local scheme = core.request.get_scheme(ngx.ctx.api_ctx)
+            ngx.say(scheme)
+        }
+    }
+--- request
+GET /hello
+--- more_headers
+X-Real-IP: 10.0.0.1
+--- response_body
+http
+--- no_error_log
+[error]
+
+
+
+=== TEST 8: get_port
+--- config
+    location = /hello {
+        real_ip_header X-Real-IP;
+
+        set_real_ip_from 0.0.0.0/0;
+        set_real_ip_from ::/0;
+        set_real_ip_from unix:;
+
+        access_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+        }
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local port = core.request.get_port(ngx.ctx.api_ctx)
+            ngx.say(port)
+        }
+    }
+--- request
+GET /hello
+--- more_headers
+X-Real-IP: 10.0.0.1
+--- response_body
+1984
+--- no_error_log
+[error]
+
+
+
+=== TEST 9: get_http_version
+--- config
+    location = /hello {
+        real_ip_header X-Real-IP;
+
+        set_real_ip_from 0.0.0.0/0;
+        set_real_ip_from ::/0;
+        set_real_ip_from unix:;
+
+        access_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+        }
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local http_version = core.request.get_http_version()
+            ngx.say(http_version)
+        }
+    }
+--- request
+GET /hello
+--- more_headers
+X-Real-IP: 10.0.0.1
+--- response_body
+1.1
+--- no_error_log
+[error]
+
+
+
+=== TEST 10: set header
+--- config
+    location = /hello {
+        content_by_lua_block {
+            local core = require("apisix.core")
+            ngx.ctx.api_ctx = {}
+            local h = core.request.header(nil, "Test")
+            local ctx = ngx.ctx.api_ctx
+            core.request.set_header(ctx, "Test", "t")
+            local h2 = core.request.header(ctx, "Test")
+            ngx.say(h)
+            ngx.say(h2)
+        }
+    }
+--- request
+GET /hello
+--- response_body
+nil
+t
+--- no_error_log
+[error]
+
+
+
+=== TEST 11: get_post_args
+--- config
+    location = /hello {
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+
+            local args = core.request.get_post_args(ngx.ctx.api_ctx)
+            ngx.say(args["c"])
+            ngx.say(args["v"])
+        }
+    }
+--- request
+POST /hello
+c=z_z&v=x%20x
+--- response_body
+z_z
+x x
+--- no_error_log
+[error]
+
+
+
+=== TEST 12: get_post_args when the body is stored in temp file
+--- config
+    location = /hello {
+        client_body_in_file_only clean;
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+
+            local args = core.request.get_post_args(ngx.ctx.api_ctx)
+            ngx.say(args["c"])
+        }
+    }
+--- request
+POST /hello
+c=z_z&v=x%20x
+--- response_body
+nil
+--- error_log
+the post form is too large: request body in temp file not supported
+
+
+
+=== TEST 13: get_method
+--- config
+    location = /hello {
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+
+            local method = core.request.get_method(ngx.ctx.api_ctx)
+            ngx.say(method)
+        }
+    }
+--- request
+POST /hello
+--- response_body
+POST
+--- no_error_log
+[error]
+
+
+
+=== TEST 14: get_path
+--- config
+    location /hello1 {
+        content_by_lua_block {
+            local core = require("apisix.core")
+            local ngx_ctx = ngx.ctx
+            local api_ctx = ngx_ctx.api_ctx
+            if api_ctx == nil then
+                api_ctx = core.tablepool.fetch("api_ctx", 0, 32)
+                ngx_ctx.api_ctx = api_ctx
+            end
+
+            core.ctx.set_vars_meta(api_ctx)
+
+            local path = core.request.get_path(ngx.ctx.api_ctx)
+            ngx.say(path)
+        }
+    }
+--- request
+GET /hello1/test?a=b&b=a
+--- response_body
+/hello1/test
+--- no_error_log
+[error]
